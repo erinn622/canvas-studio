@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Canvas Studio</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#171717;color:#eee;overflow:hidden}
+button,input,select{font:inherit}button{border:0;cursor:pointer;color:#eee;background:#2a2a2a;border-radius:8px;padding:8px 10px}
+button:hover{background:#383838}.app{height:100vh;display:grid;grid-template-rows:52px 1fr}.top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#202020;border-bottom:1px solid #333}.brand{font-weight:700;margin-right:10px}.spacer{flex:1}
+.main{display:grid;grid-template-columns:60px 1fr 270px;min-height:0}.tools{background:#202020;border-right:1px solid #333;padding:8px;display:flex;flex-direction:column;gap:6px}.tool{height:42px;padding:0;font-size:18px}.tool.active{background:#eee;color:#111}
+.workspace{position:relative;overflow:hidden;background:#111;display:flex;align-items:center;justify-content:center}.stage{position:relative;box-shadow:0 8px 40px #000;background:white}.stage canvas{position:absolute;inset:0}.stage img{position:absolute;user-select:none;touch-action:none}.empty{position:absolute;color:#888;pointer-events:none}
+.side{background:#202020;border-left:1px solid #333;padding:12px;overflow:auto}.section{border-bottom:1px solid #333;padding-bottom:12px;margin-bottom:12px}.section h3{font-size:13px;margin:0 0 10px;color:#bbb}.row{display:flex;align-items:center;gap:8px;margin:8px 0}.row label{font-size:12px;color:#aaa;min-width:54px}.row input[type=range]{flex:1}.color{width:42px;height:32px;padding:2px}.layers{display:flex;flex-direction:column;gap:5px}.layer{padding:8px;background:#292929;border-radius:7px;font-size:12px;display:flex;gap:6px;align-items:center}.layer.active{outline:1px solid #aaa}.layer span:first-of-type{flex:1}
+.hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:11px;color:#777;background:#191919aa;padding:6px 9px;border-radius:8px}
+@media(max-width:850px){.main{grid-template-columns:52px 1fr}.side{display:none}.top .brand{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="brand">✦ Canvas Studio</div>
+  <button id="newBtn">新建</button>
+  <button id="openBtn">导入图片</button>
+  <button id="undoBtn">↶</button><button id="redoBtn">↷</button>
+  <div class="spacer"></div>
+  <button id="zoomOut">−</button><span id="zoomLabel">100%</span><button id="zoomIn">＋</button>
+  <button id="pngBtn">导出 PNG</button><button id="svgBtn">导出 SVG</button>
+</header>
+<div class="main">
+  <aside class="tools">
+    <button class="tool active" data-tool="pencil" title="铅笔">✏️</button>
+    <button class="tool" data-tool="pen" title="钢笔">🖊️</button>
+    <button class="tool" data-tool="watercolor" title="水彩">🖌️</button>
+    <button class="tool" data-tool="marker" title="马克笔">🖍️</button>
+    <button class="tool" data-tool="crayon" title="蜡笔">🖍</button>
+    <button class="tool" data-tool="eraser" title="橡皮">⌫</button>
+    <button class="tool" data-tool="eyedropper" title="吸管">💧</button>
+    <button class="tool" data-tool="move" title="移动画布">✋</button>
+  </aside>
+  <main class="workspace" id="workspace">
+    <div class="stage" id="stage">
+      <canvas id="paper"></canvas>
+      <canvas id="draw"></canvas>
+      <div class="empty" id="empty">上传图片后可拖动、缩放并绘画</div>
+    </div>
+    <div class="hint">Space + 拖动：平移　滚轮：缩放　Ctrl/Cmd+Z：撤销</div>
+  </main>
+  <aside class="side">
+    <div class="section">
+      <h3>画布</h3>
+      <div class="row"><label>宽度</label><input id="cw" type="number" value="1200" min="1"></div>
+      <div class="row"><label>高度</label><input id="ch" type="number" value="800" min="1"></div>
+      <button id="resizeBtn">应用尺寸</button>
+      <div class="row"><label>背景</label><input id="bg" class="color" type="color" value="#ffffff"></div>
+    </div>
+    <div class="section">
+      <h3>画笔</h3>
+      <div class="row"><label>颜色</label><input id="brushColor" class="color" type="color" value="#222222"></div>
+      <div class="row"><label>大小</label><input id="size" type="range" min="1" max="120" value="8"><span id="sizeVal">8</span></div>
+      <div class="row"><label>透明度</label><input id="opacity" type="range" min="1" max="100" value="100"><span id="opacityVal">100</span></div>
+      <div class="row"><label>平滑</label><input id="smooth" type="range" min="0" max="100" value="65"><span id="smoothVal">65</span></div>
+    </div>
+    <div class="section">
+      <h3>纸张纹理</h3>
+      <select id="texture" style="width:100%;padding:8px;border-radius:8px;background:#2a2a2a;color:#eee;border:0">
+        <option value="none">无</option><option value="parchment">羊皮纸</option>
+        <option value="watercolor">水彩纸</option><option value="xuan">宣纸</option>
+        <option value="sketch">素描纸</option>
+      </select>
+    </div>
+    <div class="section">
+      <h3>图片</h3>
+      <button id="imgBtn" style="width:100%">＋ 添加图片</button>
+      <input id="file" type="file" accept="image/*" multiple hidden>
+      <p style="font-size:11px;color:#777;line-height:1.5">图片导入后可拖动。后续版本可加入裁剪、旋转、蒙版、滤镜和图层混合模式。</p>
+    </div>
+    <div class="section">
+      <h3>快捷键</h3>
+      <div style="font-size:11px;color:#888;line-height:1.8">P 铅笔　B 钢笔　E 橡皮　I 吸管<br>V 移动画布　[ ] 调整笔刷<br>Ctrl/Cmd+Z 撤销　Ctrl/Cmd+Shift+Z 重做</div>
+    </div>
+  </aside>
+</div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const paper=$('#paper'), draw=$('#draw'), stage=$('#stage'), workspace=$('#workspace');
+const pctx=paper.getContext('2d'), ctx=draw.getContext('2d');
+let W=1200,H=800,zoom=1,tool='pencil',drawing=false,last=null,space=false,pan={x:0,y:0},panStart=null;
+let history=[],future=[],images=[];
+
+function resizeCanvases(){
+  W=Math.max(1,+$('#cw').value||1200); H=Math.max(1,+$('#ch').value||800);
+  [paper,draw].forEach(c=>{c.width=W;c.height=H});
+  stage.style.width=W+'px'; stage.style.height=H+'px';
+  renderPaper(); saveHistory();
+}
+function renderPaper(){
+  pctx.clearRect(0,0,W,H); pctx.fillStyle=$('#bg').value; pctx.fillRect(0,0,W,H);
+  const t=$('#texture').value;
+  if(t==='none') return;
+  const n=t==='parchment'?9000:t==='watercolor'?14000:t==='xuan'?17000:11000;
+  const base=t==='parchment'?'#bca77d':t==='watercolor'?'#d8d5ce':t==='xuan'?'#ddd8c9':'#d0ccc3';
+  pctx.fillStyle=base;pctx.globalAlpha=.20;pctx.fillRect(0,0,W,H);
+  pctx.globalAlpha=.10;
+  for(let i=0;i<n;i++){let x=Math.random()*W,y=Math.random()*H,s=Math.random()*2+0.3;pctx.fillStyle=Math.random()>.5?'#000':'#fff';pctx.fillRect(x,y,s,s)}
+  pctx.globalAlpha=1;
+}
+function snapshot(){return draw.toDataURL('image/png')}
+function saveHistory(){history.push(snapshot()); if(history.length>30)history.shift(); future=[]}
+function restore(data){let im=new Image();im.onload=()=>{ctx.clearRect(0,0,W,H);ctx.drawImage(im,0,0);};im.src=data}
+function undo(){if(history.length<2)return;future.push(history.pop());restore(history[history.length-1])}
+function redo(){if(!future.length)return;let d=future.pop();history.push(d);restore(d)}
+function setZoom(z){zoom=Math.min(3,Math.max(.2,z));stage.style.transform=`translate(${pan.x}px,${pan.y}px) scale(${zoom})`;$('#zoomLabel').textContent=Math.round(zoom*100)+'%'}
+function pointerPos(e){let r=draw.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
+function hexToRgb(h){return h.match(/\w\w/g).map(x=>parseInt(x,16))}
+function strokeStyle(){
+  const [r,g,b]=hexToRgb($('#brushColor').value.slice(1));
+  const a=(+$('#opacity').value)/100;
+  return `rgba(${r},${g},${b},${a})`;
+}
+function begin(e){
+  if(e.button!==0)return;
+  if(space||tool==='move'){panStart={x:e.clientX-pan.x,y:e.clientY-pan.y};return}
+  if(tool==='eyedropper'){const pos=pointerPos(e);const d=pctx.getImageData(pos.x,pos.y,1,1).data;$('#brushColor').value='#'+[d[0],d[1],d[2]].map(x=>x.toString(16).padStart(2,'0')).join('');tool='pencil';selectTool();return}
+  drawing=true;last=pointerPos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);
+}
+function move(e){
+  if(panStart){pan.x=e.clientX-panStart.x;pan.y=e.clientY-panStart.y;setZoom(zoom);return}
+  if(!drawing)return;
+  const pos=pointerPos(e), size=+$('#size').value, op=+$('#opacity').value/100;
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=op;
+  if(tool==='eraser'){ctx.globalCompositeOperation='destination-out';ctx.lineWidth=size*1.5}
+  else{ctx.globalCompositeOperation='source-over';ctx.strokeStyle=strokeStyle();ctx.lineWidth=size;
+    if(tool==='watercolor'){ctx.globalAlpha=op*.16;ctx.lineWidth=size*2.5}
+    if(tool==='marker'){ctx.globalAlpha=op*.45;ctx.lineWidth=size*1.5}
+    if(tool==='crayon'){ctx.globalAlpha=op*.75;ctx.lineWidth=size}
+  }
+  const s=(+$('#smooth').value)/100;
+  const x=last.x+(pos.x-last.x)*(0.45+s*.45), y=last.y+(pos.y-last.y)*(0.45+s*.45);
+  ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(x,y);ctx.stroke();last={x,y};
+}
+function end(){if(panStart){panStart=null;return}if(drawing){drawing=false;ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';saveHistory()}}
+function selectTool(){document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool))}
+document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;selectTool()});
+$('#resizeBtn').onclick=resizeCanvases; $('#bg').oninput=renderPaper; $('#texture').onchange=renderPaper;
+$('#size').oninput=e=>$('#sizeVal').textContent=e.target.value;
+$('#opacity').oninput=e=>$('#opacityVal').textContent=e.target.value;
+$('#smooth').oninput=e=>$('#smoothVal').textContent=e.target.value;
+$('#undoBtn').onclick=undo; $('#redoBtn').onclick=redo;
+$('#zoomIn').onclick=()=>setZoom(zoom*1.15); $('#zoomOut').onclick=()=>setZoom(zoom/1.15);
+$('#newBtn').onclick=()=>{if(confirm('新建会清空当前绘画，确定吗？')){ctx.clearRect(0,0,W,H);images.forEach(x=>x.el.remove());images=[];saveHistory()}};
+$('#openBtn').onclick=()=>$('#file').click(); $('#imgBtn').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{
+  [...e.target.files].forEach(file=>{let url=URL.createObjectURL(file),im=new Image();im.src=url;im.onload=()=>{
+    im.className='canvas-image';im.draggable=false;im.style.width=Math.min(im.naturalWidth,W*.55)+'px';im.style.left=(W-im.offsetWidth)/2+'px';im.style.top=(H-im.offsetHeight)/2+'px';stage.appendChild(im);
+    let obj={el:im,x:parseFloat(im.style.left),y:parseFloat(im.style.top),sx:im.offsetWidth,sy:im.offsetHeight};images.push(obj);
+    let dragging=false,ox=0,oy=0;im.onpointerdown=ev=>{dragging=true;ox=ev.clientX/zoom-obj.x;oy=ev.clientY/zoom-obj.y;im.setPointerCapture(ev.pointerId)};
+    im.onpointermove=ev=>{if(!dragging)return;obj.x=ev.clientX/zoom-ox;obj.y=ev.clientY/zoom-oy;im.style.left=obj.x+'px';im.style.top=obj.y+'px'};
+    im.onpointerup=()=>{dragging=false};$('#empty').style.display='none';
+  }});e.target.value='';
+};
+$('#pngBtn').onclick=()=>{
+  const out=document.createElement('canvas');out.width=W;out.height=H;let o=out.getContext('2d');
+  o.drawImage(paper,0,0);o.drawImage(draw,0,0);
+  // Images are DOM layers in this prototype; PNG export draws them at their current positions.
+  images.forEach(x=>o.drawImage(x.el,x.x,x.y,x.el.offsetWidth,x.el.offsetHeight));
+  const a=document.createElement('a');a.download='canvas-studio.png';a.href=out.toDataURL('image/png');a.click();
+};
+$('#svgBtn').onclick=()=>{
+  const bg=$('#bg').value;
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="100%" height="100%" fill="${bg}"/>`;
+  svg+=`<image href="${draw.toDataURL('image/png')}" width="${W}" height="${H}"/>`;
+  svg+='</svg>';
+  const blob=new Blob([svg],{type:'image/svg+xml'}),a=document.createElement('a');a.download='canvas-studio.svg';a.href=URL.createObjectURL(blob);a.click();
+};
+workspace.onpointerdown=begin;workspace.onpointermove=move;workspace.onpointerup=end;workspace.onpointerleave=end;
+workspace.onwheel=e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.08:.92))};
+window.onkeydown=e=>{
+  if(e.code==='Space'){space=true;e.preventDefault()}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.shiftKey?redo():undo()}
+  const m={pencil:'pencil',b:'pen',e:'eraser',i:'eyedropper',v:'move'};
+  if(m[e.key.toLowerCase()]){tool=m[e.key.toLowerCase()];selectTool()}
+  if(e.key==='['){$('#size').value=Math.max(1,+$('#size').value-2);$('#size').dispatchEvent(new Event('input'))}
+  if(e.key===']'){$('#size').value=Math.min(120,+$('#size').value+2);$('#size').dispatchEvent(new Event('input'))}
+};
+window.onkeyup=e=>{if(e.code==='Space')space=false};
+resizeCanvases();
+</script>
+</body>
+</html>
